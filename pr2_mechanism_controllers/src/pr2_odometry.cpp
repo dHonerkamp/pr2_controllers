@@ -384,8 +384,9 @@ namespace controller {
     geometry_msgs::Twist wheel_local_vel;
     caster_local_vel.angular.z = base_kin_.wheel_[index].parent_->joint_->velocity_*caster_calibration_multiplier_;
     wheel_local_vel = base_kin_.pointVel2D(base_kin_.wheel_[index].offset_, caster_local_vel);
-    wheel_speed = base_kin_.wheel_[index].joint_->velocity_ - 
-      wheel_local_vel.linear.x / (base_kin_.wheel_[index].wheel_radius_);
+    wheel_speed = base_kin_.wheel_[index].joint_->velocity_ - wheel_local_vel.linear.x / (base_kin_.wheel_[index].wheel_radius_);
+      ROS_DEBUG("Odometry:: caster_local_vel.angular.z: %f", caster_local_vel.angular.z);
+      ROS_DEBUG("Odometry:: correction: %f", wheel_local_vel.linear.x / (base_kin_.wheel_[index].wheel_radius_));
     return wheel_speed;
   }
 

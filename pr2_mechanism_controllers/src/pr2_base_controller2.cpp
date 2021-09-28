@@ -378,52 +378,44 @@ void Pr2BaseController2::setJointCommands()
   setDesiredWheelSpeeds();
 }
 
-void Pr2BaseController2::computeDesiredCasterSteer(const double &dT)
-{
-  geometry_msgs::Twist result;
+void Pr2BaseController2::computeDesiredCasterSteer(const double &dT) {
+    geometry_msgs::Twist result;
 
-  double steer_angle_desired(0.0), steer_angle_desired_m_pi(0.0);
-  double error_steer(0.0), error_steer_m_pi(0.0);
-  double trans_vel = sqrt(cmd_vel_.linear.x * cmd_vel_.linear.x + cmd_vel_.linear.y * cmd_vel_.linear.y);
+    double steer_angle_desired(0.0), steer_angle_desired_m_pi(0.0);
+    double error_steer(0.0), error_steer_m_pi(0.0);
+    double trans_vel = sqrt(cmd_vel_.linear.x * cmd_vel_.linear.x + cmd_vel_.linear.y * cmd_vel_.linear.y);
 
-  for(int i = 0; i < base_kinematics_.num_casters_; i++)
-  {
-    filtered_velocity_[i] = 0.0 - base_kinematics_.caster_[i].joint_->velocity_;
-  }
-  caster_vel_filter_.update(filtered_velocity_,filtered_velocity_);
-
-  for(int i = 0; i < base_kinematics_.num_casters_; i++)
-  {
-    result = base_kinematics_.pointVel2D(base_kinematics_.caster_[i].offset_, cmd_vel_);
-    if(trans_vel < EPS && fabs(cmd_vel_.angular.z) < EPS)
-    {
-      steer_angle_desired = base_kinematics_.caster_[i].steer_angle_stored_;
+    for (int i = 0; i < base_kinematics_.num_casters_; i++) {
+        filtered_velocity_[i] = 0.0 - base_kinematics_.caster_[i].joint_->velocity_;
     }
-    else
-    {
-      steer_angle_desired = atan2(result.linear.y, result.linear.x);
-      base_kinematics_.caster_[i].steer_angle_stored_ = steer_angle_desired;
-    }
-    steer_angle_desired_m_pi = angles::normalize_angle(steer_angle_desired + M_PI);
-    error_steer = angles::shortest_angular_distance(
-          base_kinematics_.caster_[i].joint_->position_,
-          steer_angle_desired);
-    error_steer_m_pi = angles::shortest_angular_distance(
-          base_kinematics_.caster_[i].joint_->position_,
-          steer_angle_desired_m_pi);
+    caster_vel_filter_.update(filtered_velocity_, filtered_velocity_);
 
-    if(fabs(error_steer_m_pi) < fabs(error_steer))
-    {
-      error_steer = error_steer_m_pi;
-      steer_angle_desired = steer_angle_desired_m_pi;
-    }
-    base_kinematics_.caster_[i].steer_angle_desired_ = steer_angle_desired;
-    double command = caster_position_pid_[i].computeCommand(error_steer,
-          filtered_velocity_[i], ros::Duration(dT));
-    base_kinematics_.caster_[i].joint_->commanded_effort_ = command;
+    for (int i = 0; i < base_kinematics_.num_casters_; i++) {
+        result = base_kinematics_.pointVel2D(base_kinematics_.caster_[i].offset_, cmd_vel_);
+        if (trans_vel < EPS && fabs(cmd_vel_.angular.z) < EPS) {
+            steer_angle_desired = base_kinematics_.caster_[i].steer_angle_stored_;
+        } else {
+            steer_angle_desired = atan2(result.linear.y, result.linear.x);
+            base_kinematics_.caster_[i].steer_angle_stored_ = steer_angle_desired;
+        }
+        steer_angle_desired_m_pi = angles::normalize_angle(steer_angle_desired + M_PI);
+        error_steer = angles::shortest_angular_distance(base_kinematics_.caster_[i].joint_->position_, steer_angle_desired);
+        error_steer_m_pi = angles::shortest_angular_distance(base_kinematics_.caster_[i].joint_->position_, steer_angle_desired_m_pi);
 
-    base_kinematics_.caster_[i].caster_position_error_ = error_steer;
-  }
+        if (fabs(error_steer_m_pi) < fabs(error_steer)) {
+            error_steer = error_steer_m_pi;
+            steer_angle_desired = steer_angle_desired_m_pi;
+        }
+        ROS_DEBUG("CASTER steer_angle_desired: %.3f, base_kinematics_.caster_[i].joint_->position_: %.3f", steer_angle_desired, base_kinematics_.caster_[i].joint_->position_);
+        base_kinematics_.caster_[i].steer_angle_desired_ = steer_angle_desired;
+        ROS_DEBUG("CASTER error: %.3f, error_dot: %.3f", error_steer, filtered_velocity_[i]);
+        double command = caster_position_pid_[i].computeCommand(error_steer,
+                                                                filtered_velocity_[i],
+                                                                ros::Duration(dT));
+        base_kinematics_.caster_[i].joint_->commanded_effort_ = command;
+
+        base_kinematics_.caster_[i].caster_position_error_ = error_steer;
+    }
 }
 
 void Pr2BaseController2::setDesiredCasterSteer()
@@ -445,12 +437,15 @@ void Pr2BaseController2::computeDesiredWheelSpeeds(const double &dT)
   caster_2d_velocity.linear.y = 0;
   caster_2d_velocity.angular.z = 0;
 
-  for(int i = 0; i < base_kinematics_.num_wheels_; i++)
-  {
+  for(int i = 0; i < base_kinematics_.num_wheels_; i++){
     filtered_wheel_velocity_[i] = base_kinematics_.wheel_[i].joint_->velocity_;
+      ROS_DEBUG("PRE filtered_wheel_velocity_[%d] pre: %f", i, filtered_wheel_velocity_[i]);
   }
   wheel_vel_filter_.update(filtered_wheel_velocity_,filtered_wheel_velocity_);
 
+  for(int i = 0; i < base_kinematics_.num_wheels_; i++) {
+      ROS_DEBUG("POST filtered_wheel_velocity_[%d] post: %f", i, filtered_wheel_velocity_[i]);
+  }
   double steer_angle_actual = 0;
   for(int i = 0; i < (int) base_kinematics_.num_wheels_; i++)
   {
@@ -467,11 +462,32 @@ void Pr2BaseController2::computeDesiredWheelSpeeds(const double &dT)
     wheel_point_velocity_projected.linear.x = costh * wheel_point_velocity.linear.x - sinth * wheel_point_velocity.linear.y;
     wheel_point_velocity_projected.linear.y = sinth * wheel_point_velocity.linear.x + costh * wheel_point_velocity.linear.y;
     base_kinematics_.wheel_[i].wheel_speed_cmd_ = (wheel_point_velocity_projected.linear.x) / (base_kinematics_.wheel_[i].wheel_radius_);
+//      ROS_DEBUG("base_kinematics_.wheel_[i].wheel_radius_: %f", base_kinematics_.wheel_[i].wheel_radius_);
+      ROS_DEBUG("filtered_wheel_velocity_[i]: %f", filtered_wheel_velocity_[i]);
+      ROS_DEBUG("- wheel_caster_steer_component.linear.x/base_kinematics_.wheel_[i].wheel_radius_: %f", - wheel_caster_steer_component.linear.x/base_kinematics_.wheel_[i].wheel_radius_);
+//      ROS_DEBUG("base_kinematics_.wheel_[i].wheel_speed_cmd_ - filtered_wheel_velocity_[i]: %f", base_kinematics_.wheel_[i].wheel_speed_cmd_ - filtered_wheel_velocity_[i]);
+      ROS_DEBUG("wheel_point_velocity_projected.linear.x: %f", wheel_point_velocity_projected.linear.x);
+      ROS_DEBUG("base_kinematics_.wheel_[i].wheel_speed_cmd_: %f", base_kinematics_.wheel_[i].wheel_speed_cmd_);
+      ROS_DEBUG("base_kinematics_.wheel_[i].joint_->velocity_: %f", base_kinematics_.wheel_[i].joint_->velocity_);
+    // TODO: should this include Pr2Odometry::getCorrectedWheelSpeed() / make use of wheel_caster_steer_component calculated above?
+      double error = base_kinematics_.wheel_[i].wheel_speed_cmd_ - base_kinematics_.wheel_[i].joint_->velocity_;
+      double error_dot = base_kinematics_.wheel_[i].wheel_speed_cmd_ - filtered_wheel_velocity_[i];
     double command = wheel_pid_controllers_[i].computeCommand(
-          - wheel_caster_steer_component.linear.x/base_kinematics_.wheel_[i].wheel_radius_,
-          base_kinematics_.wheel_[i].wheel_speed_cmd_ - filtered_wheel_velocity_[i],
-          ros::Duration(dT));
+              error,
+              error_dot,
+              ros::Duration(dT));
+      ROS_DEBUG("error: %.3f, error_dot: %.3f, command: %.3f", error, error_dot, command);
+//    double command = wheel_pid_controllers_[i].computeCommand(
+//          - wheel_caster_steer_component.linear.x/base_kinematics_.wheel_[i].wheel_radius_,
+//          base_kinematics_.wheel_[i].wheel_speed_cmd_ - filtered_wheel_velocity_[i],
+//          ros::Duration(dT));
     base_kinematics_.wheel_[i].joint_->commanded_effort_ = command;
+
+      double low;
+      double high;
+      base_kinematics_.wheel_[i].joint_->getLimits(low, high);
+      ROS_DEBUG("low: %.3f, high: %.3f", low, high);
+
   }
 }
 
